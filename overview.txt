@@ -1,0 +1,95 @@
+Overview 
+
+1. To see show timings (GET : /date)
+	Result :
+	* Show Timings : [11.30am,2.30pm]
+
+2. To see number of seats available (GET : /date/show)
+	Result : 
+	* Total Seats : 50
+	* Total Seats Booked
+	* Total Seats Available
+	* Booked Seat Numbers : [1,5,6]
+	* Available Seat Numbers : [3,8,9]
+
+3. To book seats (POST : /bookticket)
+	Data :
+	* Name 
+	* Showtime
+	* Total Seats
+	* Seat Numbers
+	* Date
+	* Time
+
+4. To get booking data (GET : /bookingdetails/date/time)
+	Result Array :
+	* Name 
+	* Total Seats 
+	* Seat Numbers
+	* Booked at 
+
+5. To cancel ticket (POST : /cancel)
+	Data : 
+	* Date
+	* Time 
+	* Seat Number 
+	Result :
+	Cancel Message
+
+
+
+peopleRoute.post('/bookticket',(req,res)=>{
+    let date = req.body.show_date;
+    let show = req.body.show;
+    let seat_num = JSON.parse(req.body.seat_num);
+    let available_num;
+    let booked_num
+    seatCountSchema().findOne({
+        where : {
+            show_date : date,
+            show : show
+        }
+    }).then(data=>{
+        available_num = data && JSON.parse(data.available_num);
+        booked_num = data && available_num.filter((value,index)=>{
+             if(seat_num.includes(value)){
+                 return value;
+             }
+        });
+        booked_num.forEach(e=>{
+           const i = available_num.indexOf(e);
+           i > -1 && available_num.splice(i,1);
+        })
+        if(seat_num.length !== booked_num.length){
+            //res.json(booked_num);
+            res.status(422).json({message : "Not all the seat numbers availble for now!"})
+        }else{
+            peopleSchema().create(req.body).then(()=>{
+                let totalBookedNum = JSON.parse(data.booked_num);
+                booked_num.map(item=>{
+                    totalBookedNum.push(item);
+                })
+                let updatedData = {
+                    available : data.available - booked_num.length,
+                    booked : data.booked + booked_num.length,
+                    available_num : JSON.stringify(available_num),
+                    booked_num : JSON.stringify(totalBookedNum),
+                }
+                seatCountSchema().update(updatedData,{
+                    where : {
+                        show_date : date,
+                        show : show
+                    }
+                }).then(()=>{
+                    res.status(200).json({message : "Seats Booked Successfully!"});
+                }).catch(err=>{
+                    console.log("Booking Error : "+err);
+                })
+            }).catch(err=>{
+                res.status(422).json("Booking Error : "+err);
+            });
+        }
+    }).catch(err=>{
+        res.status(422).send("Error : "+err);
+    })
+});
