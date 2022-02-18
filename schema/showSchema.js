@@ -1,9 +1,9 @@
 const {DataTypes} = require('sequelize');
 const sequelize = require('../models/server');
-const seatCountSchema = require('./seatCountSchema');
+const SeatCountSchema = require('./seatCountSchema');
+const PersonSchema = require('./personSchema')
 
-const showSchema = ()=>{
-   const schema = sequelize.define('shows',{
+const ShowSchema = sequelize.define('shows',{
         id : {
             type : DataTypes.INTEGER,
             allowNull : false,
@@ -30,20 +30,17 @@ const showSchema = ()=>{
             allowNull : false,
             defaultValue : 50
         },
-        date : {
+        show_date : {
             type : DataTypes.STRING,
             allowNull : false,
             primaryKey : true
         }
-    });
-    /* schema.sync({force:false}).then(async ()=>{
-        console.log("Show Tables Synced!");
-        await seatCountSchema();
-    }).catch(err=>{
-        console.log('Error : '+err);
-    }); */
-    return schema;
-} 
+});
+
+ShowSchema.hasMany(SeatCountSchema,{foreignKey : 'show_date',as : 'showcount'});
+SeatCountSchema.belongsTo(ShowSchema,{foreignKey  :'show_date',as : 'showcount'})
+//Problem with  Naming collision between attribute 'show' and association 'show' on model seat_counts.
+//SeatCountSchema.belongsTo(ShowSchema,{foreignKey : 'show_date'})
 
 
-module.exports = showSchema;
+module.exports = ShowSchema;

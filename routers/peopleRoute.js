@@ -1,73 +1,103 @@
 const express = require('express');
 const peopleRoute = express.Router();
-const seatCountSchema = require('../schema/seatCountSchema')
-const peopleSchema = require('../schema/personSchema');
-const personSchema = require('../schema/personSchema');
+const SeatCountSchema = require('../schema/seatCountSchema')
+const PeopleSchema = require('../schema/personSchema');
+const validator = require('../middleware/validate');
+const personValidate = require('../validation/personValidate');
 
-peopleRoute.post('/bookticket',(req,res)=>{
+
+peopleRoute.post('/bookticket',validator(personValidate),(req,res)=>{
     let date = req.body.show_date;
     let show = req.body.show;
     let seat_num = JSON.parse(req.body.seat_num);
     let available_num;
-    let booked_num;
-
-    let seatCount, people ;
-
-    seatCountSchema().findOne({
+    let showid;
+    SeatCountSchema.findOne({
         where : {
             show_date : date,
             show : show
         }
     }).then(data=>{
-        /* {
-            where : {
-                show_date : date,
-                show : show
-            }
-        } */
-        seatCount = data;
-        return peopleSchema().getTableName()
-    }).then((data)=>{
-        res.status(200).send(data);
-    })
-    .catch(err=>{
-        res.status(422).send("Error : "+err);
+        showid = data.id
+        available_num = data && JSON.parse(data.available_num);
+        booked_num = data && available_num.filter((value,index)=>{
+             if(seat_num.includes(value)){
+                 return value;
+             }
+        });
+        booked_num.forEach(e=>{
+           const i = available_num.indexOf(e);
+           i > -1 && available_num.splice(i,1);
+        });
+        if(seat_num.length !== booked_num.length){
+            //res.json(booked_num);
+            res.status(422).json({message : "Not all the seat numbers availble for now!"})
+        }else{
+            let peopleData = {...req.body,showid}
+            PeopleSchema.create(peopleData).then(()=>{
+                let totalBookedNum = JSON.parse(data.booked_num);
+                booked_num.map(item=>{
+                    totalBookedNum.push(item);
+                })
+                let updatedData = {
+                    available : data.available - booked_num.length,
+                    booked : data.booked + booked_num.length,
+                    available_num : JSON.stringify(available_num),
+                    booked_num : JSON.stringify(totalBookedNum),
+                }
+                SeatCountSchema.update(updatedData,{
+                    where : {
+                        show_date : date,
+                        show : show
+                    }
+                }).then(()=>{
+                    res.status(200).json({message : "Seats Booked Successfully!"});
+                }).catch(err=>{
+                    console.log("Booking Error : "+err);
+                })
+            }).catch(err=>{
+                res.status(422).json("Booking Error : "+err);
+            });
+        }
+    }).catch(err=>{
+        res.status(422).send("Seat Count Error : "+err);
     })
 });
 
 let person , show_date;
 peopleRoute.get('/:id',(req,res)=>{
     let id = req.params.id;
-    peopleSchema().findOne({
+    PeopleSchema.findOne({
+        attributes :['name','show','total_seats','seat_num'],
         where : {
             id : id
         },
-        //include : seatCountSchema()
+        //include : SeatCountSchema
         include : [{
-            model : seatCountSchema(),
-            required : true
+            model : SeatCountSchema,
+            required : true,
+            attributes : ['show_time','show_date']
         }]
     }).then(data =>{
-        person = data;
-        res.status(200).json(person);
+        data ? res.status(200).json(data) : res.status(200).send({message : "No Data Available!"});
     })
 })
 
 peopleRoute.delete('/cancel/:id',(req,res)=>{
     let id = req.params.id;
-    let date,show,seat_num,available_num,booked_num;
-    peopleSchema().findOne({where : {
+    let showid,show,seat_num,available_num,booked_num;
+    PeopleSchema.findOne({where : {
         id : id
     }}).then(data=>{
         if(!data){
             res.status(422).json({message : 'No Records Found!'})
         }else{
-            date = data.show_date;
-            show = data.show
+            show = data.show;
+            showid = data.showid;
             seat_num = JSON.parse(data.seat_num);
-            seatCountSchema().findOne({
+            SeatCountSchema.findOne({
                 where : {
-                    show_date : date,
+                    id : showid,
                     show : show
                 }
             }).then( async elem =>{
@@ -85,14 +115,14 @@ peopleRoute.delete('/cancel/:id',(req,res)=>{
                     available_num : JSON.stringify(available_num),
                     booked_num : JSON.stringify(booked_num)
                 }
-                await peopleSchema().destroy({
+                await PeopleSchema.destroy({
                     where : {
                         id : id
                     }
                 });
-                await seatCountSchema().update(updatedDate,{
+                await SeatCountSchema.update(updatedDate,{
                     where : {
-                        show_date : date,
+                        id : showid,
                         show : show
                     }
                 })

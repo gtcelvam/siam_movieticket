@@ -9,7 +9,7 @@ const sequelize = new Sequelize(dbConfig.db,dbConfig.username,dbConfig.password,
 
 
 
-sequelize.sync().then(()=>{
+sequelize.sync({force : false}).then(()=>{
     console.log("Tables Synced Successfully!")
 })
 

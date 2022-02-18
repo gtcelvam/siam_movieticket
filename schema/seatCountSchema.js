@@ -1,8 +1,8 @@
 const {DataTypes} = require('sequelize');
 const sequelize = require('../models/server');
+const PersonSchema = require('../schema/personSchema');
 
-const seatCountSchema = ()=>{
-   const schema = sequelize.define('seat_counts',{
+const SeatCountSchema = sequelize.define('seat_counts',{
         id : {
             type : DataTypes.INTEGER,
             allowNull : false,
@@ -34,27 +34,9 @@ const seatCountSchema = ()=>{
         booked_num :{
             type : DataTypes.STRING,
             allowNull : false
-        },
-        show_date : {
-            type : DataTypes.STRING,
-            allowNull:false,
-            references : {
-                model : 'shows',
-                key:'date'
-            },
-            unique : true
         }
     });
-    
-    /* schema.sync({force:false}).then(async ()=>{
-        
-        console.log("Seat Count Synced!");
-    }).catch(err=>{
-        console.log('Seat Count Error : '+err)
-    }); */
 
-    return schema
-};
-
-
-module.exports = seatCountSchema;
+SeatCountSchema.hasMany(PersonSchema,{foreignKey : 'showid',onDelete : "CASCADE"});
+PersonSchema.belongsTo(SeatCountSchema,{foreignKey : 'showid',onDelete : "CASCADE"})
+module.exports = SeatCountSchema;
